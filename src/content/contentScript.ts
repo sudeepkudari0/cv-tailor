@@ -13,6 +13,7 @@ interface Message {
 
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
+  console.log("[CV-Tailor] Received message:", message.type);
   handleMessage(message, sendResponse);
   return true; // Keep channel open for async response
 });
@@ -23,12 +24,15 @@ async function handleMessage(message: Message, sendResponse: (response: any) => 
       case "DETECT_JD":
         const jd = detectJobDescription();
         const jobInfo = detectJobInfo();
+        console.log("[CV-Tailor] Detected JD length:", jd.length, "Job:", jobInfo);
         sendResponse({ success: true, data: { jd, ...jobInfo } });
         break;
 
       case "FILL_FORM":
-        await fillForm(message.data);
-        sendResponse({ success: true });
+        console.log("[CV-Tailor] Filling form with data:", Object.keys(message.data));
+        const filledCount = await fillForm(message.data);
+        console.log("[CV-Tailor] Filled", filledCount, "fields");
+        sendResponse({ success: true, data: { filledCount } });
         break;
 
       case "GET_FORM_FIELDS":
@@ -44,6 +48,7 @@ async function handleMessage(message: Message, sendResponse: (response: any) => 
         sendResponse({ success: false, error: "Unknown message type" });
     }
   } catch (error: any) {
+    console.error("[CV-Tailor] Error:", error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -78,6 +83,7 @@ function detectJobDescription(): string {
     '.description__text',
     '.jobs-description',
     '.job-view-layout',
+    '.jobs-description-content__text',
     
     // Indeed
     '#jobDescriptionText',
@@ -129,6 +135,7 @@ function detectJobInfo(): { jobTitle: string; company: string } {
     '[data-testid*="title"]',
     '.posting-headline h2',
     '.jobs-details-top-card__job-title',
+    '.top-card-layout__title',
   ];
 
   for (const selector of titleSelectors) {
@@ -148,6 +155,7 @@ function detectJobInfo(): { jobTitle: string; company: string } {
     '.posting-categories .company',
     '.jobs-details-top-card__company-url',
     '.employer-name',
+    '.top-card-layout__second-subline',
   ];
 
   for (const selector of companySelectors) {
@@ -214,7 +222,7 @@ function getFormFields(): Array<{ name: string; type: string; label: string; val
 }
 
 /**
- * Fill form with provided data
+ * Fill form with provided data - returns count of filled fields
  */
 async function fillForm(data: {
   firstName?: string;
@@ -226,79 +234,120 @@ async function fillForm(data: {
   portfolio?: string;
   coverLetter?: string;
   resumeText?: string;
-}): Promise<void> {
+}): Promise<number> {
   // Field matchers - map data keys to common field identifiers
   const fieldMatchers: Record<string, string[]> = {
-    firstName: ['first_name', 'firstname', 'fname', 'first-name', 'given'],
-    lastName: ['last_name', 'lastname', 'lname', 'last-name', 'surname', 'family'],
-    email: ['email', 'e-mail', 'emailaddress'],
-    phone: ['phone', 'telephone', 'tel', 'mobile', 'cell'],
-    linkedin: ['linkedin', 'linked-in', 'linked_in'],
-    github: ['github', 'git-hub'],
-    portfolio: ['portfolio', 'website', 'url', 'personal'],
-    coverLetter: ['cover', 'letter', 'coverletter', 'cover_letter'],
+    firstName: ['first_name', 'firstname', 'fname', 'first-name', 'given', 'first name', 'givenname'],
+    lastName: ['last_name', 'lastname', 'lname', 'last-name', 'surname', 'family', 'last name', 'familyname'],
+    email: ['email', 'e-mail', 'emailaddress', 'e_mail', 'mail'],
+    phone: ['phone', 'telephone', 'tel', 'mobile', 'cell', 'phonenumber', 'phone number'],
+    linkedin: ['linkedin', 'linked-in', 'linked_in', 'linkedinurl'],
+    github: ['github', 'git-hub', 'githuburl'],
+    portfolio: ['portfolio', 'website', 'url', 'personal', 'personalwebsite', 'personalurl', 'web'],
+    coverLetter: ['cover', 'letter', 'coverletter', 'cover_letter', 'cover letter', 'motivation'],
   };
 
+  let filledCount = 0;
   const inputs = document.querySelectorAll('input, textarea');
+  
+  console.log("[CV-Tailor] Found", inputs.length, "input fields");
   
   for (const input of inputs) {
     const el = input as HTMLInputElement | HTMLTextAreaElement;
-    if (el.type === 'hidden' || el.type === 'submit') continue;
+    if (el.type === 'hidden' || el.type === 'submit' || el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') continue;
     
-    const identifier = (el.name + el.id + el.placeholder + el.className).toLowerCase();
+    // Build identifier from all available attributes
+    const identifier = [
+      el.name,
+      el.id,
+      el.placeholder,
+      el.className,
+      el.getAttribute('aria-label'),
+      el.getAttribute('data-testid'),
+    ].filter(Boolean).join(' ').toLowerCase();
+    
+    // Get label text
+    let labelText = "";
+    const labelEl = document.querySelector(`label[for="${el.id}"]`);
+    if (labelEl) {
+      labelText = (labelEl.textContent || "").toLowerCase();
+    } else {
+      // Check parent for label
+      const parent = el.closest('div, fieldset, label, section');
+      if (parent) {
+        const nearLabel = parent.querySelector('label, span.label, div.label');
+        if (nearLabel) {
+          labelText = (nearLabel.textContent || "").toLowerCase();
+        }
+      }
+    }
+    
+    const fullIdentifier = identifier + " " + labelText;
     
     // Try to match and fill
+    let filled = false;
     for (const [key, patterns] of Object.entries(fieldMatchers)) {
+      if (filled) break;
       const value = data[key as keyof typeof data];
       if (!value) continue;
       
       for (const pattern of patterns) {
-        if (identifier.includes(pattern)) {
+        if (fullIdentifier.includes(pattern)) {
+          console.log("[CV-Tailor] Filling field:", el.name || el.id, "with", key);
           await fillField(el, value);
+          filledCount++;
+          filled = true;
           break;
         }
       }
     }
-    
-    // Check for label match
-    const label = document.querySelector(`label[for="${el.id}"]`);
-    if (label) {
-      const labelText = label.textContent?.toLowerCase() || "";
-      for (const [key, patterns] of Object.entries(fieldMatchers)) {
-        const value = data[key as keyof typeof data];
-        if (!value) continue;
-        
-        for (const pattern of patterns) {
-          if (labelText.includes(pattern)) {
-            await fillField(el, value);
-            break;
-          }
-        }
-      }
-    }
   }
+  
+  return filledCount;
 }
 
 /**
  * Fill a single field with proper event simulation
  */
 async function fillField(element: HTMLInputElement | HTMLTextAreaElement, value: string): Promise<void> {
-  // Don't overwrite existing values
-  if (element.value) return;
+  // Don't overwrite existing values (unless empty or just whitespace)
+  if (element.value && element.value.trim()) {
+    console.log("[CV-Tailor] Skipping field (has value):", element.name || element.id);
+    return;
+  }
   
   // Focus the element
   element.focus();
   
-  // Set value
-  element.value = value;
+  // Clear existing value
+  element.value = "";
+  
+  // Set value using native setter for React compatibility
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  )?.set;
+  const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value"
+  )?.set;
+  
+  if (element instanceof HTMLInputElement && nativeInputValueSetter) {
+    nativeInputValueSetter.call(element, value);
+  } else if (element instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {
+    nativeTextAreaValueSetter.call(element, value);
+  } else {
+    element.value = value;
+  }
   
   // Dispatch events for React/Angular/Vue apps
-  element.dispatchEvent(new Event('input', { bubbles: true }));
-  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+  element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
   element.dispatchEvent(new Event('blur', { bubbles: true }));
   
   // Small delay for framework updates
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 100));
 }
 
 /**
@@ -312,4 +361,4 @@ function cleanText(text: string): string {
 }
 
 // Notify that content script is loaded
-console.log("CV-Tailor content script loaded");
+console.log("[CV-Tailor] Content script loaded on:", window.location.hostname);
