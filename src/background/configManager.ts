@@ -9,21 +9,24 @@ import { ProviderConfig } from "../models/providers/types";
 export interface ExtensionConfig {
   // Provider settings
   provider: 'ollama' | 'groq' | 'gemini';
-  
+
   // Ollama
   ollamaBaseUrl: string;
   ollamaModelId: string;
-  
+
   // Groq
   groqApiKey: string;
   groqModelId: string;
-  
+
   // Gemini
   geminiApiKey: string;
   geminiModelId: string;
-  
-  // Master resume (stored as YAML string)
+
+  // Master resume (stored as YAML string for PDF generation)
   masterResumeYaml: string;
+
+  // Master resume (raw text for LLM rewriting)
+  masterResumeText: string;
 }
 
 const DEFAULT_CONFIG: ExtensionConfig = {
@@ -35,32 +38,33 @@ const DEFAULT_CONFIG: ExtensionConfig = {
   geminiApiKey: '',
   geminiModelId: 'gemini-1.5-flash',
   masterResumeYaml: '',
+  masterResumeText: '',
 };
 
 export class ConfigManager {
   private static instance: ConfigManager;
-  
-  private constructor() {}
-  
+
+  private constructor() { }
+
   static getInstance(): ConfigManager {
     if (!ConfigManager.instance) {
       ConfigManager.instance = new ConfigManager();
     }
     return ConfigManager.instance;
   }
-  
+
   async getConfig(): Promise<ExtensionConfig> {
     const result = await chrome.storage.sync.get(DEFAULT_CONFIG);
     return result as ExtensionConfig;
   }
-  
+
   async saveConfig(config: Partial<ExtensionConfig>): Promise<void> {
     await chrome.storage.sync.set(config);
   }
-  
+
   async getProviderConfig(): Promise<ProviderConfig> {
     const config = await this.getConfig();
-    
+
     switch (config.provider) {
       case 'ollama':
         return {
@@ -68,38 +72,38 @@ export class ConfigManager {
           modelId: config.ollamaModelId,
           baseUrl: config.ollamaBaseUrl,
         };
-      
+
       case 'groq':
         return {
           provider: 'groq',
           apiKey: config.groqApiKey,
           modelId: config.groqModelId,
         };
-      
+
       case 'gemini':
         return {
           provider: 'gemini',
           apiKey: config.geminiApiKey,
           modelId: config.geminiModelId,
         };
-      
+
       default:
         throw new Error(`Provider ${config.provider} not supported`);
     }
   }
-  
+
   async getMasterResumeYaml(): Promise<string> {
     const config = await this.getConfig();
     return config.masterResumeYaml;
   }
-  
+
   async setMasterResumeYaml(yaml: string): Promise<void> {
     await this.saveConfig({ masterResumeYaml: yaml });
   }
-  
+
   async isConfigured(): Promise<boolean> {
     const config = await this.getConfig();
-    
+
     // Check if provider has required config
     switch (config.provider) {
       case 'ollama':

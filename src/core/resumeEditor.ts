@@ -9,7 +9,7 @@ import { PROMPTS } from "../models/prompts";
 import { MasterResume, JDAnalysis } from "./types";
 
 export class ResumeEditor {
-  constructor(private llm: LLMProvider) {}
+  constructor(private llm: LLMProvider) { }
 
   /**
    * Convert master resume to plain text for LLM
@@ -64,8 +64,14 @@ export class ResumeEditor {
       lines.push("", "## Projects");
       for (const proj of resume.projects) {
         lines.push(`\n### ${proj.name}`);
-        lines.push(proj.description);
-        if (proj.link) lines.push(`Link: ${proj.link}`);
+        if (proj.bullets?.length) {
+          for (const bullet of proj.bullets) {
+            lines.push(`- ${bullet}`);
+          }
+        } else if (proj.description) {
+          lines.push(proj.description);
+        }
+        if (proj.url) lines.push(`Link: ${proj.url}`);
       }
     }
 
@@ -90,14 +96,17 @@ export class ResumeEditor {
 
   /**
    * Pass 2: Rewrite resume using JD analysis
+   * @param rawResumeText - Optional raw text to use instead of converting from YAML
    */
   async rewriteResume(
     masterResume: MasterResume,
     jdAnalysis: JDAnalysis,
     jobTitle: string,
-    company: string
+    company: string,
+    rawResumeText?: string
   ): Promise<string> {
-    const masterText = this.masterResumeToText(masterResume);
+    // Use raw text if provided, otherwise convert from YAML structure
+    const masterText = rawResumeText || this.masterResumeToText(masterResume);
     const jdAnalysisStr = JSON.stringify(jdAnalysis, null, 2);
 
     const response = await this.llm.generate(
@@ -113,18 +122,20 @@ export class ResumeEditor {
 
   /**
    * Full optimization pipeline
+   * @param rawResumeText - Optional raw text to use for LLM instead of converting from YAML
    */
   async optimize(
     masterResume: MasterResume,
     jobDescription: string,
     jobTitle: string,
-    company: string
+    company: string,
+    rawResumeText?: string
   ): Promise<{ resume: string; jdAnalysis: JDAnalysis }> {
     // Pass 1: Analyze JD
     const jdAnalysis = await this.analyzeJD(jobDescription);
 
-    // Pass 2: Rewrite resume
-    const resume = await this.rewriteResume(masterResume, jdAnalysis, jobTitle, company);
+    // Pass 2: Rewrite resume (use raw text if provided)
+    const resume = await this.rewriteResume(masterResume, jdAnalysis, jobTitle, company, rawResumeText);
 
     return { resume, jdAnalysis };
   }

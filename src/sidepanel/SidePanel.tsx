@@ -197,8 +197,9 @@ export function SidePanel() {
       }
 
       const masterResumeYaml = fullConfigResponse.data.masterResumeYaml;
+      const masterResumeText = fullConfigResponse.data.masterResumeText;
       if (!masterResumeYaml) {
-        throw new Error("Please upload your master resume in Settings first");
+        throw new Error("Please upload your master resume YAML in Settings first");
       }
 
       const parsedResume = yaml.load(masterResumeYaml) as MasterResume;
@@ -214,11 +215,13 @@ export function SidePanel() {
       const coverLetterGen = new CoverLetterGenerator(provider);
 
       setLoadingStatus("Analyzing job description...");
+      // Use raw text for LLM if available, otherwise use converted YAML
       const { resume: optimizedResume, jdAnalysis: analysis } = await resumeEditor.optimize(
         parsedResume,
         jobDescription,
         jobTitle,
-        company
+        company,
+        masterResumeText || undefined
       );
       setResume(optimizedResume);
       setJdAnalysis(analysis);
@@ -308,31 +311,28 @@ export function SidePanel() {
         {/* Main Navigation Tabs */}
         <div className="flex gap-1 mt-3 p-1 bg-gray-100 rounded-lg">
           <button
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-              mainTab === "tailor"
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${mainTab === "tailor"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
-            }`}
+              }`}
             onClick={() => setMainTab("tailor")}
           >
             ✨ Tailor
           </button>
           <button
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-              mainTab === "search"
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${mainTab === "search"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
-            }`}
+              }`}
             onClick={() => setMainTab("search")}
           >
             🔍 Search
           </button>
           <button
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-              mainTab === "companies"
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${mainTab === "companies"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
-            }`}
+              }`}
             onClick={() => setMainTab("companies")}
           >
             🏢 Companies
@@ -408,11 +408,10 @@ export function SidePanel() {
               />
 
               <button
-                className={`w-full mt-3 py-2.5 px-4 rounded-lg font-medium transition-colors ${
-                  isLoading
+                className={`w-full mt-3 py-2.5 px-4 rounded-lg font-medium transition-colors ${isLoading
                     ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                     : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
+                  }`}
                 onClick={handleGenerate}
                 disabled={isLoading}
               >
@@ -465,21 +464,19 @@ export function SidePanel() {
                   {/* Tabs */}
                   <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
                     <button
-                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                        resultTab === "resume"
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${resultTab === "resume"
                           ? "bg-white text-gray-900 shadow-sm"
                           : "text-gray-600 hover:text-gray-900"
-                      }`}
+                        }`}
                       onClick={() => setResultTab("resume")}
                     >
                       📄 Resume
                     </button>
                     <button
-                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                        resultTab === "cover-letter"
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${resultTab === "cover-letter"
                           ? "bg-white text-gray-900 shadow-sm"
                           : "text-gray-600 hover:text-gray-900"
-                      }`}
+                        }`}
                       onClick={() => setResultTab("cover-letter")}
                     >
                       ✉️ Cover Letter
@@ -492,11 +489,10 @@ export function SidePanel() {
                       <div className="space-y-3">
                         <div className="flex flex-wrap gap-2">
                           <button
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                              copySuccess === "resume"
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${copySuccess === "resume"
                                 ? "bg-green-100 text-green-700"
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                              }`}
                             onClick={() => handleCopy(resume, "resume")}
                           >
                             {copySuccess === "resume" ? "✓ Copied!" : "📋 Copy"}
@@ -526,11 +522,10 @@ export function SidePanel() {
                       <div className="space-y-3">
                         <div className="flex gap-2">
                           <button
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                              copySuccess === "letter"
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${copySuccess === "letter"
                                 ? "bg-green-100 text-green-700"
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                              }`}
                             onClick={() => handleCopy(coverLetter, "letter")}
                           >
                             {copySuccess === "letter" ? "✓ Copied!" : "📋 Copy"}

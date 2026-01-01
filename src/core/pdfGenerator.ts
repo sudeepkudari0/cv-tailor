@@ -1,325 +1,321 @@
 /**
- * PDF Generator - Using jsPDF directly
- * Features: Clickable links, proper header styling, professional layout
+ * PDF Generator - Matching exact resume format
+ * Features: Left-aligned header, Employment History with subsections,
+ * Projects with links and descriptions, proper formatting
  */
 
 import { jsPDF } from "jspdf";
 import { MasterResume } from "./types";
 
-interface ParsedSection {
-  type: "name" | "contact" | "section" | "job" | "date" | "bullet" | "text" | "link" | "skills";
-  content: string;
-  link?: string;
-}
+// Colors
+const COLORS = {
+  black: [0, 0, 0] as [number, number, number],
+  link: [0, 102, 204] as [number, number, number], // Blue for links
+  gray: [100, 100, 100] as [number, number, number],
+};
 
 /**
- * Parse resume text into structured sections
- */
-function parseResumeForPDF(text: string): ParsedSection[] {
-  const lines = text.split("\n");
-  const sections: ParsedSection[] = [];
-  
-  let currentSection = "";
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    
-    // Main title (# Name)
-    if (trimmed.startsWith("# ")) {
-      sections.push({ type: "name", content: trimmed.replace("# ", "") });
-    }
-    // Contact info with potential links
-    else if (trimmed.match(/^(Email|Phone|Location|LinkedIn|GitHub|Portfolio):/)) {
-      const [label, value] = trimmed.split(": ");
-      let link: string | undefined;
-      
-      if (label === "Email" && value) {
-        link = `mailto:${value}`;
-      } else if (label === "LinkedIn" && value) {
-        link = value.startsWith("http") ? value : `https://${value}`;
-      } else if (label === "GitHub" && value) {
-        link = value.startsWith("http") ? value : `https://${value}`;
-      } else if (label === "Portfolio" && value) {
-        link = value.startsWith("http") ? value : `https://${value}`;
-      }
-      
-      sections.push({ type: "contact", content: trimmed, link });
-    }
-    // Section header (## Section)
-    else if (trimmed.startsWith("## ")) {
-      currentSection = trimmed.replace("## ", "");
-      sections.push({ type: "section", content: currentSection.toUpperCase() });
-    }
-    // Job/Project header (### Title at Company)
-    else if (trimmed.startsWith("### ")) {
-      sections.push({ type: "job", content: trimmed.replace("### ", "") });
-    }
-    // Link lines
-    else if (trimmed.startsWith("Link:")) {
-      const url = trimmed.replace("Link:", "").trim();
-      sections.push({ type: "link", content: url, link: url.startsWith("http") ? url : `https://${url}` });
-    }
-    // Bullet point
-    else if (trimmed.startsWith("- ")) {
-      sections.push({ type: "bullet", content: trimmed.replace("- ", "") });
-    }
-    // Date/location line
-    else if (trimmed.includes("|") || (trimmed.match(/^\d{4}/) && !trimmed.includes("-"))) {
-      sections.push({ type: "date", content: trimmed });
-    }
-    // Skills (comma-separated)
-    else if (currentSection.toLowerCase() === "skills" && trimmed.includes(",")) {
-      sections.push({ type: "skills", content: trimmed });
-    }
-    // Regular text
-    else {
-      sections.push({ type: "text", content: trimmed });
-    }
-  }
-  
-  return sections;
-}
-
-/**
- * Generate PDF from resume text using jsPDF directly
+ * Generate PDF directly from MasterResume data
+ * This ensures projects, links, and all details are preserved
  */
 export async function generateResumePDF(
-  resumeText: string,
+  _resumeText: string,
   filename: string,
-  _masterResume?: MasterResume
+  masterResume?: MasterResume
 ): Promise<void> {
-  const sections = parseResumeForPDF(resumeText);
-  
-  // Create PDF (Letter size)
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "pt",
-    format: "letter",
-  });
-  
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 45;
-  const contentWidth = pageWidth - margin * 2;
-  let y = margin;
-  
-  // Colors - more vibrant
-  const primaryColor: [number, number, number] = [30, 64, 175]; // #1e40af - blue
-  const textColor: [number, number, number] = [33, 33, 33]; // #212121 - almost black
-  const secondaryColor: [number, number, number] = [100, 100, 100]; // #646464
-  const linkColor: [number, number, number] = [37, 99, 235]; // #2563eb
-  
-  for (const section of sections) {
-    // Check for page overflow
-    if (y > 720) {
-      doc.addPage();
-      y = margin;
-    }
-    
-    switch (section.type) {
-      case "name":
-        // Name - large, bold, centered, blue
-        doc.setFontSize(24);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(section.content, pageWidth / 2, y, { align: "center" });
-        y += 25;
-        break;
-        
-      case "contact":
-        // Contact info - smaller, centered, with clickable links
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        
-        if (section.link) {
-          doc.setTextColor(...linkColor);
-          const textWidth = doc.getTextWidth(section.content);
-          const x = (pageWidth - textWidth) / 2;
-          doc.textWithLink(section.content, x, y, { url: section.link });
-        } else {
-          doc.setTextColor(...secondaryColor);
-          doc.text(section.content, pageWidth / 2, y, { align: "center" });
-        }
-        y += 12;
-        break;
-        
-      case "section":
-        // Section header - blue, bold, with line
-        y += 12;
-        doc.setFontSize(11);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(section.content, margin, y);
-        y += 4;
-        doc.setDrawColor(...primaryColor);
-        doc.setLineWidth(1.5);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 12;
-        break;
-        
-      case "job":
-        // Job title - bold black
-        doc.setFontSize(11);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "bold");
-        const jobLines = doc.splitTextToSize(section.content, contentWidth);
-        doc.text(jobLines, margin, y);
-        y += jobLines.length * 13;
-        break;
-        
-      case "date":
-        // Date/location - italic, gray
-        doc.setFontSize(9);
-        doc.setTextColor(...secondaryColor);
-        doc.setFont("helvetica", "italic");
-        doc.text(section.content, margin, y);
-        y += 12;
-        break;
-        
-      case "bullet":
-        // Bullet point - normal text with bullet
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "normal");
-        const bulletText = `• ${section.content}`;
-        const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 10);
-        doc.text(bulletLines, margin + 8, y);
-        y += bulletLines.length * 12 + 2;
-        break;
-        
-      case "skills":
-        // Skills - wrapped text
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "normal");
-        const skillLines = doc.splitTextToSize(section.content, contentWidth);
-        doc.text(skillLines, margin, y);
-        y += skillLines.length * 12 + 2;
-        break;
-        
-      case "link":
-        // Clickable link
-        doc.setFontSize(9);
-        doc.setTextColor(...linkColor);
-        doc.setFont("helvetica", "normal");
-        if (section.link) {
-          doc.textWithLink(section.content, margin, y, { url: section.link });
-        } else {
-          doc.text(section.content, margin, y);
-        }
-        y += 12;
-        break;
-        
-      case "text":
-        // Regular text
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "normal");
-        const textLines = doc.splitTextToSize(section.content, contentWidth);
-        doc.text(textLines, margin, y);
-        y += textLines.length * 12 + 2;
-        break;
-    }
+  if (!masterResume) {
+    throw new Error("Master resume is required for PDF generation");
   }
-  
-  // Save
+
+  const doc = createResumePDF(masterResume);
   doc.save(filename);
 }
 
 /**
- * Generate PDF Blob
+ * Generate PDF Blob from MasterResume
  */
 export async function generateResumePDFBlob(
-  resumeText: string,
-  _masterResume?: MasterResume
+  _resumeText: string,
+  masterResume?: MasterResume
 ): Promise<Blob> {
+  if (!masterResume) {
+    throw new Error("Master resume is required for PDF generation");
+  }
+
+  const doc = createResumePDF(masterResume);
+  return doc.output("blob");
+}
+
+/**
+ * Create the actual PDF document
+ */
+function createResumePDF(resume: MasterResume): jsPDF {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
-    format: "letter",
+    format: "a4",
   });
-  
-  // Simplified - just return blob
-  const sections = parseResumeForPDF(resumeText);
+
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 45;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 50;
   const contentWidth = pageWidth - margin * 2;
   let y = margin;
-  
-  const primaryColor: [number, number, number] = [30, 64, 175];
-  const textColor: [number, number, number] = [33, 33, 33];
-  const secondaryColor: [number, number, number] = [100, 100, 100];
-  const linkColor: [number, number, number] = [37, 99, 235];
-  
-  for (const section of sections) {
-    if (y > 720) {
+
+  // Helper to check page overflow
+  const checkPageBreak = (neededSpace: number) => {
+    if (y + neededSpace > pageHeight - margin) {
       doc.addPage();
       y = margin;
     }
-    
-    switch (section.type) {
-      case "name":
-        doc.setFontSize(24);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(section.content, pageWidth / 2, y, { align: "center" });
-        y += 25;
-        break;
-      case "contact":
-        doc.setFontSize(9);
+  };
+
+  // ==================== HEADER SECTION ====================
+  // Name - Bold, left-aligned
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...COLORS.black);
+  doc.text(resume.name, margin, y);
+  y += 20;
+
+  // Contact info - labeled fields, left-aligned
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+
+  // Portfolio
+  if (resume.portfolio) {
+    doc.setTextColor(...COLORS.black);
+    doc.text("Portfolio: ", margin, y);
+    const portfolioLabelWidth = doc.getTextWidth("Portfolio: ");
+    doc.setTextColor(...COLORS.link);
+    const portfolioUrl = resume.portfolio.startsWith("http") ? resume.portfolio : `https://${resume.portfolio}`;
+    doc.textWithLink(resume.portfolio, margin + portfolioLabelWidth, y, { url: portfolioUrl });
+    y += 14;
+  }
+
+  // Email
+  doc.setTextColor(...COLORS.black);
+  doc.text("Email: ", margin, y);
+  const emailLabelWidth = doc.getTextWidth("Email: ");
+  doc.setTextColor(...COLORS.link);
+  doc.textWithLink(resume.email, margin + emailLabelWidth, y, { url: `mailto:${resume.email}` });
+  y += 14;
+
+  // Phone
+  if (resume.phone) {
+    doc.setTextColor(...COLORS.black);
+    doc.text("Phone: ", margin, y);
+    const phoneLabelWidth = doc.getTextWidth("Phone: ");
+    doc.text(resume.phone, margin + phoneLabelWidth, y);
+    y += 14;
+  }
+
+  // LinkedIn
+  if (resume.linkedin) {
+    doc.setTextColor(...COLORS.black);
+    doc.text("LinkedIn: ", margin, y);
+    const linkedinLabelWidth = doc.getTextWidth("LinkedIn: ");
+    doc.setTextColor(...COLORS.link);
+    const linkedinUrl = resume.linkedin.startsWith("http") ? resume.linkedin : `https://${resume.linkedin}`;
+    doc.textWithLink(linkedinUrl, margin + linkedinLabelWidth, y, { url: linkedinUrl });
+    y += 14;
+  }
+
+  y += 6;
+
+  // ==================== SUMMARY/BIO ====================
+  if (resume.summary) {
+    doc.setTextColor(...COLORS.black);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const summaryLines = doc.splitTextToSize(resume.summary.trim(), contentWidth);
+    doc.text(summaryLines, margin, y);
+    y += summaryLines.length * 12 + 8;
+  }
+
+  // ==================== EMPLOYMENT HISTORY ====================
+  checkPageBreak(30);
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...COLORS.black);
+  doc.text("Employment History", pageWidth / 2, y, { align: "center" });
+  y += 16;
+
+  for (const exp of resume.experience) {
+    checkPageBreak(80);
+
+    // Job title and company
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.black);
+    doc.text(`${exp.title}, ${exp.company}`, margin, y);
+    y += 14;
+
+    // Duration line
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.gray);
+    doc.text(`Duration: ${exp.dates}`, margin, y);
+    y += 12;
+
+    // Technologies Used line
+    if (exp.technologies && exp.technologies.length > 0) {
+      const techText = `Technologies Used: [Tech Stack: ${exp.technologies.join(", ")}]`;
+      const techLines = doc.splitTextToSize(techText, contentWidth);
+      doc.text(techLines, margin, y);
+      y += techLines.length * 11 + 4;
+    }
+
+    // Full-Time bullets (if intern_bullets exist, show as subsection)
+    if (exp.intern_bullets && exp.intern_bullets.length > 0) {
+      // Show as "As Full-Time Developer" subsection
+      y += 4;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...COLORS.black);
+      doc.text("•   As Full-Time Developer (June 2024 – Present):", margin, y);
+      y += 14;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      for (const bullet of exp.bullets) {
+        checkPageBreak(30);
+        const bulletText = `-      ${bullet}`;
+        const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 30);
+        doc.text(bulletLines, margin + 20, y);
+        y += bulletLines.length * 11 + 2;
+      }
+
+      // Intern bullets
+      y += 6;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("•   As Intern (Feb 2024 – June 2024):", margin, y);
+      y += 14;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      for (const bullet of exp.intern_bullets) {
+        checkPageBreak(30);
+        const bulletText = `-      ${bullet}`;
+        const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 30);
+        doc.text(bulletLines, margin + 20, y);
+        y += bulletLines.length * 11 + 2;
+      }
+    } else {
+      // Regular bullets without subsections
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...COLORS.black);
+      for (const bullet of exp.bullets) {
+        checkPageBreak(30);
+        const bulletText = `-      ${bullet}`;
+        const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 15);
+        doc.text(bulletLines, margin + 10, y);
+        y += bulletLines.length * 11 + 2;
+      }
+    }
+
+    y += 8;
+  }
+
+  // ==================== PROJECTS ====================
+  checkPageBreak(40);
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...COLORS.black);
+  doc.text("Projects", pageWidth / 2, y, { align: "center" });
+  y += 16;
+
+  if (resume.projects) {
+    for (const project of resume.projects) {
+      checkPageBreak(50);
+
+      // Project name with link
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...COLORS.black);
+
+      const projectName = project.name;
+      doc.text(projectName, margin, y);
+
+      if (project.url) {
+        const nameWidth = doc.getTextWidth(projectName);
         doc.setFont("helvetica", "normal");
-        if (section.link) {
-          doc.setTextColor(...linkColor);
-          doc.textWithLink(section.content, pageWidth / 2, y, { url: section.link, align: "center" });
-        } else {
-          doc.setTextColor(...secondaryColor);
-          doc.text(section.content, pageWidth / 2, y, { align: "center" });
+        doc.text(" | ", margin + nameWidth, y);
+        const pipeWidth = doc.getTextWidth(" | ");
+        doc.setTextColor(...COLORS.link);
+        const projectUrl = project.url.startsWith("http") ? project.url : `https://${project.url}`;
+        doc.textWithLink(project.url, margin + nameWidth + pipeWidth, y, { url: projectUrl });
+      }
+      y += 14;
+
+      // Project bullets/description
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...COLORS.black);
+
+      if (project.bullets && project.bullets.length > 0) {
+        for (const bullet of project.bullets) {
+          checkPageBreak(25);
+          const bulletText = `-      ${bullet}`;
+          const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 15);
+          doc.text(bulletLines, margin + 10, y);
+          y += bulletLines.length * 11 + 2;
         }
-        y += 12;
-        break;
-      case "section":
-        y += 12;
-        doc.setFontSize(11);
-        doc.setTextColor(...primaryColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(section.content, margin, y);
-        y += 4;
-        doc.setDrawColor(...primaryColor);
-        doc.setLineWidth(1.5);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 12;
-        break;
-      case "job":
-        doc.setFontSize(11);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "bold");
-        doc.text(section.content, margin, y);
-        y += 13;
-        break;
-      case "date":
-        doc.setFontSize(9);
-        doc.setTextColor(...secondaryColor);
-        doc.setFont("helvetica", "italic");
-        doc.text(section.content, margin, y);
-        y += 12;
-        break;
-      case "bullet":
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "normal");
-        const bulletLines = doc.splitTextToSize(`• ${section.content}`, contentWidth - 10);
-        doc.text(bulletLines, margin + 8, y);
-        y += bulletLines.length * 12 + 2;
-        break;
-      default:
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        doc.setFont("helvetica", "normal");
-        const lines = doc.splitTextToSize(section.content, contentWidth);
-        doc.text(lines, margin, y);
-        y += lines.length * 12 + 2;
+      } else if (project.description) {
+        const descLines = doc.splitTextToSize(`-      ${project.description}`, contentWidth - 15);
+        doc.text(descLines, margin + 10, y);
+        y += descLines.length * 11 + 2;
+      }
+
+      y += 6;
     }
   }
-  
-  return doc.output("blob");
+
+  // ==================== SKILLS ====================
+  checkPageBreak(40);
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...COLORS.black);
+  doc.text("Skills", pageWidth / 2, y, { align: "center" });
+  y += 16;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const skillsText = resume.skills.join(", ") + ".";
+  const skillLines = doc.splitTextToSize(skillsText, contentWidth);
+  doc.text(skillLines, margin, y);
+  y += skillLines.length * 12 + 8;
+
+  // ==================== EDUCATION ====================
+  checkPageBreak(50);
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...COLORS.black);
+  doc.text("Education", pageWidth / 2, y, { align: "center" });
+  y += 16;
+
+  for (const edu of resume.education) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.black);
+    doc.text(`${edu.degree}, ${edu.school}`, margin, y);
+    y += 12;
+
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.gray);
+    let eduDetails = `(${edu.year})`;
+    if (edu.gpa) {
+      eduDetails += ` | CGPA - ${edu.gpa}`;
+    }
+    doc.text(eduDetails, margin, y);
+    y += 14;
+  }
+
+  return doc;
 }

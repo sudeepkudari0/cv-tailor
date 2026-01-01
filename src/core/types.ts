@@ -11,9 +11,9 @@ export interface MasterResume {
   linkedin?: string;
   github?: string;
   portfolio?: string;
-  
+
   summary?: string;
-  
+
   experience: Experience[];
   education: Education[];
   skills: string[];
@@ -26,19 +26,23 @@ export interface Experience {
   company: string;
   dates: string;
   location?: string;
+  technologies?: string[];
   bullets: string[];
+  intern_bullets?: string[];
 }
 
 export interface Education {
   degree: string;
   school: string;
   year: string;
+  gpa?: string;
 }
 
 export interface Project {
   name: string;
-  description: string;
-  link?: string;
+  url?: string;
+  description?: string;
+  bullets?: string[];
 }
 
 export interface JDAnalysis {

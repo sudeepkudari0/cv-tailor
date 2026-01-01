@@ -13,6 +13,7 @@ interface Config {
   geminiApiKey: string;
   geminiModelId: string;
   masterResumeYaml: string;
+  masterResumeText: string;
 }
 
 export function Options() {
@@ -25,8 +26,9 @@ export function Options() {
     geminiApiKey: "",
     geminiModelId: "gemini-1.5-flash",
     masterResumeYaml: "",
+    masterResumeText: "",
   });
-  
+
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<"provider" | "resume">("provider");
@@ -92,21 +94,19 @@ export function Options() {
         {/* Navigation Tabs */}
         <div className="flex gap-2 p-1 bg-slate-800/50 rounded-xl border border-slate-700">
           <button
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-              activeSection === "provider"
-                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                : "text-slate-400 hover:text-white"
-            }`}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeSection === "provider"
+              ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+              : "text-slate-400 hover:text-white"
+              }`}
             onClick={() => setActiveSection("provider")}
           >
             <span>🤖</span> LLM Provider
           </button>
           <button
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-              activeSection === "resume"
-                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                : "text-slate-400 hover:text-white"
-            }`}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeSection === "resume"
+              ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+              : "text-slate-400 hover:text-white"
+              }`}
             onClick={() => setActiveSection("resume")}
           >
             <span>📄</span> Master Resume
@@ -122,11 +122,10 @@ export function Options() {
                 {(["groq", "ollama", "gemini"] as Provider[]).map((p) => (
                   <button
                     key={p}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      config.provider === p
-                        ? "border-blue-500 bg-blue-500/10"
-                        : "border-slate-600 hover:border-slate-500 bg-slate-900/30"
-                    }`}
+                    className={`p-4 rounded-xl border-2 transition-all ${config.provider === p
+                      ? "border-blue-500 bg-blue-500/10"
+                      : "border-slate-600 hover:border-slate-500 bg-slate-900/30"
+                      }`}
                     onClick={() => setConfig({ ...config, provider: p })}
                   >
                     <div className="text-2xl mb-2">{providerIcons[p]}</div>
@@ -267,45 +266,74 @@ export function Options() {
         {activeSection === "resume" && (
           <div className="card bg-slate-800/50 border border-slate-700 shadow-lg">
             <div className="card-body">
-              <h2 className="text-lg font-semibold text-white mb-4">Master Resume</h2>
+              <h2 className="text-lg font-semibold text-white mb-2">Master Resume</h2>
               <p className="text-sm text-slate-400 mb-4">
-                Upload your master resume in YAML format. This will be used as the source for all tailored resumes.
+                <strong>YAML</strong> for PDF generation • <strong>Raw Text</strong> for AI rewriting
               </p>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".yaml,.yml"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
+              {/* YAML Section */}
+              <div className="mb-6 p-4 rounded-lg bg-slate-900/30 border border-slate-700">
+                <label className="label">
+                  <span className="label-text text-slate-300 font-medium">📄 YAML Format (for PDF)</span>
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Structured data for PDF with links and formatting.
+                </p>
 
-              <div className="flex items-center gap-3 mb-4">
-                <button
-                  className="btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 hover:from-blue-500 hover:to-purple-500"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  📁 Upload YAML File
-                </button>
-                {config.masterResumeYaml && (
-                  <div className="badge bg-green-600/20 text-green-400 border-green-500/30 gap-1">
-                    <span>✓</span> Resume loaded
-                  </div>
-                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".yaml,.yml"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+
+                <div className="flex items-center gap-3 mb-3">
+                  <button
+                    className="btn btn-sm bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    📁 Upload YAML
+                  </button>
+                  {config.masterResumeYaml && (
+                    <div className="badge bg-green-600/20 text-green-400 border-green-500/30 gap-1">
+                      <span>✓</span> YAML loaded
+                    </div>
+                  )}
+                </div>
+
+                <textarea
+                  className="textarea textarea-bordered w-full h-48 bg-slate-900/50 border-slate-600 text-slate-300 font-mono text-xs"
+                  value={config.masterResumeYaml}
+                  onChange={(e) => setConfig({ ...config, masterResumeYaml: e.target.value })}
+                  placeholder="Paste or upload your YAML resume..."
+                />
               </div>
 
-              {config.masterResumeYaml && (
-                <div className="mt-4">
-                  <label className="label">
-                    <span className="label-text text-slate-300">Resume Content (editable)</span>
-                  </label>
-                  <textarea
-                    className="textarea textarea-bordered w-full h-64 bg-slate-900/50 border-slate-600 text-slate-300 font-mono text-xs"
-                    value={config.masterResumeYaml}
-                    onChange={(e) => setConfig({ ...config, masterResumeYaml: e.target.value })}
-                  />
-                </div>
-              )}
+              {/* Raw Text Section */}
+              <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700">
+                <label className="label">
+                  <span className="label-text text-slate-300 font-medium">📝 Raw Text (for AI)</span>
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Full resume text for AI rewriting. Preserves all content.
+                </p>
+
+                {config.masterResumeText && (
+                  <div className="mb-3">
+                    <div className="badge bg-green-600/20 text-green-400 border-green-500/30 gap-1">
+                      <span>✓</span> {config.masterResumeText.length} chars
+                    </div>
+                  </div>
+                )}
+
+                <textarea
+                  className="textarea textarea-bordered w-full h-64 bg-slate-900/50 border-slate-600 text-slate-300 font-mono text-xs"
+                  value={config.masterResumeText}
+                  onChange={(e) => setConfig({ ...config, masterResumeText: e.target.value })}
+                  placeholder="Paste your full resume text here (copy from PDF)..."
+                />
+              </div>
 
               {/* Sample Template */}
               <details className="mt-4 bg-slate-900/30 rounded-lg border border-slate-700">
@@ -313,37 +341,34 @@ export function Options() {
                   📝 View Sample YAML Template
                 </summary>
                 <pre className="text-xs text-slate-400 p-4 overflow-auto border-t border-slate-700">
-{`name: John Doe
+                  {`name: John Doe
 email: john.doe@email.com
 phone: "+1 555-123-4567"
-location: San Francisco, CA
-linkedin: linkedin.com/in/johndoe
-github: github.com/johndoe
-
-summary: |
-  Full-stack engineer with 5+ years building scalable systems...
+portfolio: https://johndoe.dev
 
 experience:
   - title: Senior Software Engineer
     company: Tech Corp
-    dates: Jan 2022 - Present
-    location: San Francisco, CA
+    dates: Feb 2022 - Present
+    technologies: [TypeScript, React, Node.js]
     bullets:
-      - Led development of microservices architecture using Node.js
-      - Improved API response times by 40% through optimization
+      - Led development of microservices
+    intern_bullets:
+      - Contributed to internal tools
+
+projects:
+  - name: My Project
+    url: https://myproject.com
+    bullets:
+      - Built a full-stack SaaS platform
 
 education:
   - degree: B.S. Computer Science
-    school: University of California
+    school: University
     year: "2019"
+    gpa: "3.8"
 
-skills:
-  - JavaScript
-  - TypeScript
-  - Python
-  - React
-  - Node.js
-  - AWS`}
+skills: [JavaScript, TypeScript, React]`}
                 </pre>
               </details>
             </div>
@@ -362,7 +387,7 @@ skills:
               </div>
             )}
           </div>
-          <button 
+          <button
             className="btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 hover:from-blue-500 hover:to-purple-500 px-8"
             onClick={saveConfig}
           >

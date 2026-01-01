@@ -55,6 +55,9 @@ HARD CONSTRAINTS (ABSOLUTE):
 5. Do NOT add new sections that do not exist in the source
 6. Do NOT add company-specific claims unless already present
 7. Do NOT mention ATS, optimization, or keywords in the output
+8. PRESERVE ALL bullet points - do NOT truncate or reduce content
+9. PRESERVE project descriptions and links exactly as provided
+10. PRESERVE employment subsections (Full-Time vs Intern) if present
 
 ATS OPTIMIZATION RULES:
 - Prefer exact keyword phrases from the JD analysis when truthfully applicable
@@ -76,10 +79,11 @@ DETERMINISM RULE:
 
 OUTPUT RULES:
 - Return ONLY the rewritten resume text
-- No explanations, no commentary, no metadata`,
+- No explanations, no commentary, no metadata
+- INCLUDE ALL projects with their full descriptions`,
 
-    user: (masterResume: string, jdAnalysis: string, jobTitle: string, company: string) => 
-`MASTER RESUME (single source of truth):
+    user: (masterResume: string, jdAnalysis: string, jobTitle: string, company: string) =>
+      `MASTER RESUME (single source of truth):
 ${masterResume}
 
 JOB DESCRIPTION ANALYSIS (use keywords ONLY where truthful):
@@ -88,7 +92,7 @@ ${jdAnalysis}
 TARGET JOB TITLE: ${jobTitle}
 COMPANY: ${company}
 
-Rewrite the resume for this role following all constraints exactly.`,
+Rewrite the resume for this role following all constraints exactly. Preserve ALL bullet points and project descriptions.`,
   },
 
   cover_letter: {
@@ -121,7 +125,7 @@ OUTPUT FORMAT:
 - End with a simple sign-off (e.g., "Regards,")`,
 
     user: (company: string, jobTitle: string, jobDescription: string, resume: string, tone: string = "professional") =>
-`Write a short cover letter for this role.
+      `Write a short cover letter for this role.
 
 COMPANY: ${company}
 JOB TITLE: ${jobTitle}
